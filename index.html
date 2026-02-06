@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>운동 타이머</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Orbitron", "Segoe UI", Arial, sans-serif;
+        --bg: #0b1020;
+        --panel: rgba(17, 25, 54, 0.9);
+        --panel-strong: rgba(24, 35, 78, 0.95);
+        --neon: #48f2ff;
+        --neon-strong: #5cf2a9;
+        --warning: #ff7b7b;
+        --text: #e2e8f0;
+        --muted: #93a4c4;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at top, #162345, var(--bg));
+        color: var(--text);
+        position: relative;
+        overflow-x: hidden;
+      }
+
+      body::before,
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      body::before {
+        background: radial-gradient(circle, rgba(72, 242, 255, 0.15), transparent 55%),
+          radial-gradient(circle at 20% 80%, rgba(92, 242, 169, 0.12), transparent 55%);
+        opacity: 0.8;
+      }
+
+      body::after {
+        background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 0);
+        background-size: 30px 30px;
+        opacity: 0.15;
+      }
+
+      body.work .arena {
+        border-color: rgba(92, 242, 169, 0.7);
+        box-shadow: 0 0 40px rgba(92, 242, 169, 0.2);
+      }
+
+      body.rest .arena {
+        border-color: rgba(255, 123, 123, 0.7);
+        box-shadow: 0 0 40px rgba(255, 123, 123, 0.2);
+      }
+
+      .container {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+
+      h1 {
+        margin-bottom: 12px;
+        letter-spacing: 1px;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        margin-top: 0;
+        margin-bottom: 20px;
+      }
+
+      .card {
+        background: var(--panel);
+        border-radius: 18px;
+        padding: 20px;
+        border: 1px solid rgba(72, 242, 255, 0.15);
+        box-shadow: 0 14px 30px rgba(8, 10, 26, 0.55);
+        backdrop-filter: blur(10px);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 18px 36px rgba(8, 10, 26, 0.75);
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+
+      .exercise-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .exercise-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(72, 242, 255, 0.15);
+        cursor: pointer;
+        transition: border 0.2s ease, transform 0.2s ease;
+      }
+
+      .exercise-item:hover {
+        transform: translateX(4px);
+        border-color: rgba(72, 242, 255, 0.6);
+      }
+
+      .timer-display {
+        text-align: center;
+        font-size: 56px;
+        font-weight: 700;
+        margin: 12px 0 6px;
+        text-shadow: 0 0 18px rgba(72, 242, 255, 0.6);
+      }
+
+      .phase {
+        text-align: center;
+        font-size: 20px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        margin-bottom: 6px;
+        color: var(--neon);
+      }
+
+      .current-exercise {
+        text-align: center;
+        font-size: 26px;
+        margin-bottom: 10px;
+      }
+
+      .buttons {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+
+      button {
+        border: none;
+        padding: 12px 22px;
+        font-size: 15px;
+        border-radius: 12px;
+        cursor: pointer;
+        background: linear-gradient(135deg, #2dd4bf, #2563eb);
+        color: #0b1020;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: 700;
+        transition: transform 0.1s ease, box-shadow 0.2s ease;
+        box-shadow: 0 0 12px rgba(45, 212, 191, 0.35);
+      }
+
+      button:disabled {
+        background: #475569;
+        cursor: not-allowed;
+        box-shadow: none;
+        color: #cbd5f5;
+      }
+
+      button:active {
+        transform: scale(0.98);
+      }
+
+      .secondary {
+        background: linear-gradient(135deg, #1e293b, #0f172a);
+        color: #e2e8f0;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 14px;
+        text-align: center;
+      }
+
+      .selected-list {
+        min-height: 140px;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px dashed rgba(72, 242, 255, 0.35);
+        background: rgba(15, 23, 42, 0.5);
+        font-size: 18px;
+      }
+
+      .selected-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: rgba(72, 242, 255, 0.12);
+        border: 1px solid rgba(72, 242, 255, 0.4);
+        margin-bottom: 8px;
+        font-weight: 700;
+        font-size: 20px;
+        letter-spacing: 0.5px;
+      }
+
+      .selected-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: rgba(72, 242, 255, 0.25);
+        color: var(--neon);
+        font-size: 14px;
+        box-shadow: 0 0 10px rgba(72, 242, 255, 0.35);
+      }
+
+      .selected-item.active {
+        border-color: rgba(92, 242, 169, 0.85);
+        background: rgba(92, 242, 169, 0.2);
+        box-shadow: 0 0 16px rgba(92, 242, 169, 0.35);
+      }
+
+      .selected-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .arena {
+        margin-top: 20px;
+        border: 1px solid rgba(72, 242, 255, 0.3);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .arena::after {
+        content: "";
+        position: absolute;
+        inset: -80px;
+        background: radial-gradient(circle, rgba(72, 242, 255, 0.15), transparent 70%);
+        opacity: 0.6;
+        pointer-events: none;
+      }
+
+      .hud {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .progress-track {
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(72, 242, 255, 0.25);
+        overflow: hidden;
+        margin-top: 10px;
+      }
+
+      .progress-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--neon), var(--neon-strong));
+        box-shadow: 0 0 10px rgba(72, 242, 255, 0.5);
+        transition: width 0.2s ease;
+      }
+
+      .pulse {
+        animation: pulse 1.2s infinite;
+      }
+
+      .impact {
+        animation: impact 0.35s ease;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          box-shadow: 0 0 16px rgba(72, 242, 255, 0.35);
+        }
+        50% {
+          transform: scale(1.02);
+          box-shadow: 0 0 26px rgba(92, 242, 169, 0.55);
+        }
+      }
+
+      @keyframes impact {
+        0% {
+          transform: scale(1);
+        }
+        40% {
+          transform: scale(1.03);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>TRAINING ARENA</h1>
+      <p class="subtitle">40초 운동 / 10초 휴식 · 게임처럼 몰입해서 진행하세요</p>
+      <div class="grid">
+        <div class="card">
+          <h2>운동 선택 (순서 고정)</h2>
+          <div class="exercise-list" id="exerciseList"></div>
+          <p class="muted">선택한 운동은 아래에 고정된 순서로 표시됩니다.</p>
+        </div>
+        <div class="card">
+          <h2>선택된 운동</h2>
+          <div class="selected-list" id="selectedList">아직 선택된 운동이 없습니다.</div>
+        </div>
+      </div>
+
+      <div class="card arena" id="arena">
+        <div class="hud">
+          <span>MODE</span>
+          <span id="roundInfo">ROUND 1</span>
+        </div>
+        <div class="phase" id="phase">준비</div>
+        <div class="current-exercise" id="currentExercise">운동을 선택하세요</div>
+        <div class="timer-display" id="timerDisplay">00:40</div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="buttons">
+          <button id="startButton">시작</button>
+          <button id="pauseButton" class="secondary" disabled>일시정지</button>
+          <button id="resetButton" class="secondary">초기화</button>
+        </div>
+        <p class="muted">40초 끝나는 시점에 "five, four, three, two, one" 음성 + 복싱벨</p>
+      </div>
+    </div>
+
+    <script>
+      const EXERCISES = [
+        "제자리뛰기",
+        "스쿼트",
+        "런지",
+        "점프스쿼트",
+        "슈퍼맨",
+        "마운틴 클라이밍",
+        "레그 레이즈",
+      ];
+
+      const WORK_SECONDS = 40;
+      const REST_SECONDS = 10;
+
+      const exerciseListEl = document.getElementById("exerciseList");
+      const selectedListEl = document.getElementById("selectedList");
+      const timerDisplayEl = document.getElementById("timerDisplay");
+      const currentExerciseEl = document.getElementById("currentExercise");
+      const phaseEl = document.getElementById("phase");
+      const startButton = document.getElementById("startButton");
+      const pauseButton = document.getElementById("pauseButton");
+      const resetButton = document.getElementById("resetButton");
+      const progressFillEl = document.getElementById("progressFill");
+      const roundInfoEl = document.getElementById("roundInfo");
+      const arenaEl = document.getElementById("arena");
+
+      let selectedExercises = [];
+      let timerId = null;
+      let isRunning = false;
+      let isWorkPhase = true;
+      let exerciseIndex = 0;
+      let remainingSeconds = WORK_SECONDS;
+      let activeExercise = null;
+      let selectedVoice = null;
+      let audioContext = null;
+      let noiseBuffer = null;
+
+      function formatTime(seconds) {
+        const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
+        const ss = String(seconds % 60).padStart(2, "0");
+        return `${mm}:${ss}`;
+      }
+
+      function updateSelectedList() {
+        if (selectedExercises.length === 0) {
+          selectedListEl.textContent = "아직 선택된 운동이 없습니다.";
+          return;
+        }
+
+        selectedListEl.innerHTML = "";
+        selectedExercises.forEach((exercise) => {
+          const item = document.createElement("div");
+          item.className = "selected-item";
+          if (activeExercise && exercise === activeExercise) {
+            item.classList.add("active");
+          }
+          const icon = document.createElement("span");
+          icon.className = "selected-icon";
+          icon.textContent = ">>";
+          const label = document.createElement("span");
+          label.textContent = exercise;
+          item.appendChild(icon);
+          item.appendChild(label);
+          selectedListEl.appendChild(item);
+        });
+      }
+
+      function renderExerciseOptions() {
+        EXERCISES.forEach((exercise) => {
+          const item = document.createElement("label");
+          item.className = "exercise-item";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.value = exercise;
+          checkbox.addEventListener("change", (event) => {
+            if (event.target.checked) {
+              selectedExercises.push(exercise);
+            } else {
+              selectedExercises = selectedExercises.filter((name) => name !== exercise);
+            }
+            updateSelectedList();
+            updateButtons();
+          });
+          const span = document.createElement("span");
+          span.textContent = exercise;
+          item.appendChild(checkbox);
+          item.appendChild(span);
+          exerciseListEl.appendChild(item);
+        });
+      }
+
+      function updateButtons() {
+        startButton.disabled = selectedExercises.length === 0 || isRunning;
+        pauseButton.disabled = !isRunning;
+      }
+
+      function speakCountdown(number) {
+        if (!("speechSynthesis" in window)) {
+          return;
+        }
+        const utterance = new SpeechSynthesisUtterance(number);
+        utterance.lang = "en-US";
+        utterance.rate = 0.8;
+        utterance.pitch = 0.4;
+        utterance.volume = 1;
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        }
+        window.speechSynthesis.speak(utterance);
+      }
+
+      function ensureAudioContext() {
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContext.state === "suspended") {
+          audioContext.resume();
+        }
+        if (!noiseBuffer) {
+          const bufferSize = audioContext.sampleRate * 0.6;
+          noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+          const data = noiseBuffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i += 1) {
+            data[i] = (Math.random() * 2 - 1) * 0.6;
+          }
+        }
+      }
+
+      function playBell() {
+        ensureAudioContext();
+
+        const now = audioContext.currentTime;
+        const gain = audioContext.createGain();
+        gain.gain.value = 0.0001;
+        gain.gain.exponentialRampToValueAtTime(0.9, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+
+        const osc1 = audioContext.createOscillator();
+        osc1.type = "square";
+        osc1.frequency.value = 720;
+        const osc2 = audioContext.createOscillator();
+        osc2.type = "triangle";
+        osc2.frequency.value = 1020;
+        const osc3 = audioContext.createOscillator();
+        osc3.type = "sine";
+        osc3.frequency.value = 540;
+
+        const noiseSource = audioContext.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+        const noiseFilter = audioContext.createBiquadFilter();
+        noiseFilter.type = "bandpass";
+        noiseFilter.frequency.value = 950;
+        noiseFilter.Q.value = 0.8;
+
+        const shaper = audioContext.createWaveShaper();
+        const curve = new Float32Array(256);
+        for (let i = 0; i < 256; i += 1) {
+          const x = (i * 2) / 255 - 1;
+          curve[i] = Math.tanh(x * 2.2);
+        }
+        shaper.curve = curve;
+        shaper.oversample = "4x";
+
+        osc1.connect(shaper);
+        osc2.connect(shaper);
+        osc3.connect(shaper);
+        noiseSource.connect(noiseFilter);
+
+        shaper.connect(gain);
+        noiseFilter.connect(gain);
+        gain.connect(audioContext.destination);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc3.start(now);
+        noiseSource.start(now);
+
+        osc1.stop(now + 1.2);
+        osc2.stop(now + 1.2);
+        osc3.stop(now + 1.2);
+        noiseSource.stop(now + 0.4);
+
+        arenaEl.classList.remove("impact");
+        void arenaEl.offsetWidth;
+        arenaEl.classList.add("impact");
+      }
+
+      function pickVoice() {
+        if (!("speechSynthesis" in window)) return;
+        const voices = window.speechSynthesis.getVoices();
+        if (!voices.length) return;
+        const englishVoices = voices.filter((voice) =>
+          voice.lang && voice.lang.toLowerCase().startsWith("en")
+        );
+        const preferred = englishVoices.find((voice) =>
+          /male|man|david|mark|alex|daniel|brian|fred|richard|james/i.test(voice.name)
+        );
+        selectedVoice =
+          preferred ||
+          englishVoices.find((voice) => /en-us/i.test(voice.lang)) ||
+          englishVoices[0] ||
+          voices[0];
+      }
+
+      function setPhaseDisplay() {
+        if (selectedExercises.length === 0) {
+          phaseEl.textContent = "준비";
+          currentExerciseEl.textContent = "운동을 선택하세요";
+          timerDisplayEl.textContent = formatTime(WORK_SECONDS);
+          progressFillEl.style.width = "0%";
+          roundInfoEl.textContent = "ROUND 1";
+          document.body.classList.remove("work", "rest");
+          arenaEl.classList.remove("pulse");
+          activeExercise = null;
+          updateSelectedList();
+          return;
+        }
+        if (isWorkPhase) {
+          phaseEl.textContent = "운동";
+          currentExerciseEl.textContent = selectedExercises[exerciseIndex];
+          document.body.classList.add("work");
+          document.body.classList.remove("rest");
+          arenaEl.classList.add("pulse");
+          activeExercise = selectedExercises[exerciseIndex];
+        } else {
+          phaseEl.textContent = "휴식";
+          currentExerciseEl.textContent = "휴식";
+          document.body.classList.add("rest");
+          document.body.classList.remove("work");
+          arenaEl.classList.remove("pulse");
+          activeExercise = null;
+        }
+        roundInfoEl.textContent = `ROUND ${exerciseIndex + 1}`;
+        timerDisplayEl.textContent = formatTime(remainingSeconds);
+        const total = isWorkPhase ? WORK_SECONDS : REST_SECONDS;
+        const progress = ((total - remainingSeconds) / total) * 100;
+        progressFillEl.style.width = `${Math.min(Math.max(progress, 0), 100)}%`;
+        updateSelectedList();
+      }
+
+      function resetTimer() {
+        clearInterval(timerId);
+        timerId = null;
+        isRunning = false;
+        isWorkPhase = true;
+        exerciseIndex = 0;
+        remainingSeconds = WORK_SECONDS;
+        setPhaseDisplay();
+        updateButtons();
+      }
+
+      function nextPhase() {
+        if (isWorkPhase) {
+          isWorkPhase = false;
+          remainingSeconds = REST_SECONDS;
+        } else {
+          isWorkPhase = true;
+          exerciseIndex = (exerciseIndex + 1) % selectedExercises.length;
+          remainingSeconds = WORK_SECONDS;
+          playBell();
+        }
+        setPhaseDisplay();
+      }
+
+      function tick() {
+        if (!isRunning) return;
+
+        remainingSeconds -= 1;
+        timerDisplayEl.textContent = formatTime(remainingSeconds);
+        const total = isWorkPhase ? WORK_SECONDS : REST_SECONDS;
+        const progress = ((total - remainingSeconds) / total) * 100;
+        progressFillEl.style.width = `${Math.min(Math.max(progress, 0), 100)}%`;
+
+        if (isWorkPhase && remainingSeconds <= 6 && remainingSeconds >= 2) {
+          const words = ["five", "four", "three", "two", "one"];
+          const index = 6 - remainingSeconds;
+          speakCountdown(words[index]);
+        }
+
+        if (remainingSeconds === 0) {
+          if (isWorkPhase) {
+            playBell();
+          }
+          nextPhase();
+        }
+      }
+
+      function startTimer() {
+        if (selectedExercises.length === 0) return;
+        if (isRunning) return;
+        isRunning = true;
+        updateButtons();
+        setPhaseDisplay();
+        if (isWorkPhase) {
+          playBell();
+        }
+        timerId = setInterval(tick, 1000);
+      }
+
+      function pauseTimer() {
+        isRunning = false;
+        clearInterval(timerId);
+        timerId = null;
+        updateButtons();
+      }
+
+      startButton.addEventListener("click", startTimer);
+      pauseButton.addEventListener("click", pauseTimer);
+      resetButton.addEventListener("click", resetTimer);
+
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.onvoiceschanged = pickVoice;
+        pickVoice();
+      }
+
+      renderExerciseOptions();
+      setPhaseDisplay();
+    </script>
+  </body>
+</html>
+
