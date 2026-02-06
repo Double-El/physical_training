@@ -385,6 +385,9 @@
       let selectedVoice = null;
       let audioContext = null;
       let noiseBuffer = null;
+      let speechPrimed = false;
+      const countdownAudio = new Audio("speech.wav");
+      countdownAudio.preload = "auto";
 
       function formatTime(seconds) {
         const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
@@ -449,6 +452,10 @@
         if (!("speechSynthesis" in window)) {
           return;
         }
+        window.speechSynthesis.resume();
+        if (window.speechSynthesis.speaking) {
+          window.speechSynthesis.cancel();
+        }
         const utterance = new SpeechSynthesisUtterance(number);
         utterance.lang = "en-US";
         utterance.rate = 0.8;
@@ -458,6 +465,47 @@
           utterance.voice = selectedVoice;
         }
         window.speechSynthesis.speak(utterance);
+      }
+
+      function primeSpeech() {
+        if (speechPrimed || !("speechSynthesis" in window)) {
+          return;
+        }
+        pickVoice();
+        const utterance = new SpeechSynthesisUtterance(" ");
+        utterance.lang = "en-US";
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        utterance.volume = 0;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+        window.speechSynthesis.resume();
+        speechPrimed = true;
+      }
+
+      function primeCountdownAudio() {
+        if (speechPrimed) return;
+        countdownAudio.muted = true;
+        countdownAudio.currentTime = 0;
+        const playPromise = countdownAudio.play();
+        if (playPromise && typeof playPromise.catch === "function") {
+          playPromise.catch(() => {
+            // ignore autoplay block
+          });
+        }
+        countdownAudio.pause();
+        countdownAudio.muted = false;
+        speechPrimed = true;
+      }
+
+      function playCountdownAudio() {
+        countdownAudio.currentTime = 0;
+        const playPromise = countdownAudio.play();
+        if (playPromise && typeof playPromise.catch === "function") {
+          playPromise.catch(() => {
+            // ignore playback errors
+          });
+        }
       }
 
       function ensureAudioContext() {
@@ -622,10 +670,8 @@
         const progress = ((total - remainingSeconds) / total) * 100;
         progressFillEl.style.width = `${Math.min(Math.max(progress, 0), 100)}%`;
 
-        if (isWorkPhase && remainingSeconds <= 6 && remainingSeconds >= 2) {
-          const words = ["five", "four", "three", "two", "one"];
-          const index = 6 - remainingSeconds;
-          speakCountdown(words[index]);
+        if (isWorkPhase && remainingSeconds === 6) {
+          playCountdownAudio();
         }
 
         if (remainingSeconds === 0) {
@@ -641,6 +687,7 @@
         if (isRunning) return;
         isRunning = true;
         updateButtons();
+        primeCountdownAudio();
         setPhaseDisplay();
         if (isWorkPhase) {
           playBell();
